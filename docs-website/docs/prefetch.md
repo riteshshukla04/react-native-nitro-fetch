@@ -118,6 +118,54 @@ export function UserDetails() {
 }
 ```
 
+## Native-side prefetch registration (first-run prefetching)
+
+`prefetchOnAppStart()` only fires from the **second** cold launch onward — JS has to run once to seed the queue. To prefetch on the very **first** launch (fresh install), register URLs from native code before JS boots. Both APIs share the same persistent queue, so JS-side `removeFromAutoPrefetch()` works on natively-registered entries too.
+
+**Android — `MainApplication.onCreate()`:**
+
+```kotlin
+import com.margelo.nitro.nitrofetch.AutoPrefetcher
+
+override fun onCreate() {
+  super.onCreate()
+
+  AutoPrefetcher.registerPrefetch(
+    this,
+    "https://api.example.com/feed",
+    "feed",
+    mapOf("Accept" to "application/json")
+  )
+
+  AutoPrefetcher.prefetchOnStart(this) // existing call — drains the queue
+  loadReactNative(this)
+}
+```
+
+**iOS — `application(_:didFinishLaunchingWithOptions:)`:**
+
+```swift
+NitroAutoPrefetcher.registerPrefetch(
+  withUrl: "https://api.example.com/feed",
+  prefetchKey: "feed",
+  headers: ["Accept": "application/json"]
+)
+// No explicit prefetchOnStart() needed — fired automatically after launch.
+```
+
+:::tip
+From Swift, expose `NitroAutoPrefetcher` via your bridging header with `#import <NitroFetch/NitroAutoPrefetcher.h>`.
+:::
+
+JS consumes the result the same way as before:
+
+```ts
+const res = await fetch('https://api.example.com/feed', {
+  headers: { prefetchKey: 'feed' },
+});
+// res.headers.get('nitroPrefetched') === 'true' on first launch
+```
+
 ## Android Setup
 
 To enable auto-prefetch on Android, you need to call `AutoPrefetcher.prefetchOnStart()` from your `MainApplication.kt`. This kicks off queued requests as early as possible — before React Native and JS have finished loading.

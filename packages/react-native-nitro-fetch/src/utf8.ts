@@ -1,22 +1,37 @@
 let _TextEncoder: typeof TextEncoder | undefined;
 let _TextDecoder: typeof TextDecoder | undefined;
 
-try {
-  _TextEncoder =
-    typeof TextEncoder !== 'undefined'
-      ? TextEncoder
-      : require('react-native-nitro-text-decoder').TextEncoder;
-} catch {
-  /* resolved at first use */
+const NITRO_TEXT_DECODER_PKG = 'react-native-nitro-text-decoder';
+
+function loadOptionalTextCodec(): {
+  TextEncoder?: typeof TextEncoder;
+  TextDecoder?: typeof TextDecoder;
+} {
+  try {
+    // Hide require from the bundler so the package stays truly optional.
+    // eslint-disable-next-line no-new-func
+    const dynamicRequire = new Function('mod', 'return require(mod);') as (
+      m: string
+    ) => unknown;
+    return dynamicRequire(NITRO_TEXT_DECODER_PKG) as {
+      TextEncoder?: typeof TextEncoder;
+      TextDecoder?: typeof TextDecoder;
+    };
+  } catch {
+    return {};
+  }
 }
 
-try {
-  _TextDecoder =
-    typeof TextDecoder !== 'undefined'
-      ? TextDecoder
-      : require('react-native-nitro-text-decoder').TextDecoder;
-} catch {
-  /* resolved at first use */
+if (typeof TextEncoder !== 'undefined') {
+  _TextEncoder = TextEncoder;
+} else {
+  _TextEncoder = loadOptionalTextCodec().TextEncoder;
+}
+
+if (typeof TextDecoder !== 'undefined') {
+  _TextDecoder = TextDecoder;
+} else {
+  _TextDecoder = loadOptionalTextCodec().TextDecoder;
 }
 
 export function stringToUTF8(str: string): Uint8Array {

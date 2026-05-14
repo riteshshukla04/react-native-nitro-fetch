@@ -702,7 +702,7 @@ export async function nitroFetch(
     ok: res.ok,
     redirected: res.redirected,
     headers: res.headers,
-    bodyBytes: res.bodyBytes as unknown as ArrayBuffer | undefined,
+    bodyBytes: res.bodyBytes,
     bodyString: res.bodyString,
   });
   return response as unknown as Response;

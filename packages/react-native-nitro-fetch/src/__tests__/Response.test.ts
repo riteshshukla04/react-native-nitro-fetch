@@ -4,7 +4,7 @@ import { NitroResponse } from '../Response';
 function makeResponse(
   init: Partial<{
     bodyString: string;
-    bodyBytes: string | ArrayBuffer;
+    bodyBytes: ArrayBuffer;
     status: number;
   }>
 ): NitroResponse {
@@ -16,19 +16,23 @@ function makeResponse(
     redirected: false,
     headers: [],
     bodyString: init.bodyString,
-    bodyBytes: init.bodyBytes as ArrayBuffer | undefined,
+    bodyBytes: init.bodyBytes,
   });
 }
 
-function base64(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString('base64');
+// Returns a standalone ArrayBuffer holding exactly `bytes` — mirrors what the
+// native side now bridges directly into `bodyBytes` (no base64 round-trip).
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  ) as ArrayBuffer;
 }
 
 // Arbitrary binary payload with every byte value represented (definitely not valid UTF-8)
 const BINARY_BYTES = new Uint8Array([
   0x00, 0x01, 0x7f, 0x80, 0x9f, 0xa0, 0xc0, 0xfe, 0xff, 0xd0, 0xb1,
 ]);
-const BINARY_BASE64 = base64(BINARY_BYTES);
 
 describe('NitroResponse — text body', () => {
   it('arrayBuffer() returns UTF-8 encoded bytes for a text body', async () => {
@@ -48,39 +52,29 @@ describe('NitroResponse — text body', () => {
   });
 });
 
-describe('NitroResponse — binary body via base64 bodyBytes (native fix)', () => {
-  it('arrayBuffer() decodes base64 bodyBytes to raw bytes', async () => {
-    const res = makeResponse({
-      bodyBytes: BINARY_BASE64 as unknown as ArrayBuffer,
-    });
+describe('NitroResponse — binary body via ArrayBuffer bodyBytes (native fix)', () => {
+  it('arrayBuffer() returns the raw bytes from bodyBytes', async () => {
+    const res = makeResponse({ bodyBytes: toArrayBuffer(BINARY_BYTES) });
     const buf = await res.arrayBuffer();
     expect(new Uint8Array(buf)).toEqual(BINARY_BYTES);
   });
 
-  it('bytes() decodes base64 bodyBytes to raw bytes', async () => {
-    const res = makeResponse({
-      bodyBytes: BINARY_BASE64 as unknown as ArrayBuffer,
-    });
+  it('bytes() returns the raw bytes from bodyBytes', async () => {
+    const res = makeResponse({ bodyBytes: toArrayBuffer(BINARY_BYTES) });
     const bytes = await res.bytes();
     expect(bytes).toEqual(BINARY_BYTES);
   });
 
   it('arrayBuffer() and bytes() agree on the same binary payload', async () => {
-    const res1 = makeResponse({
-      bodyBytes: BINARY_BASE64 as unknown as ArrayBuffer,
-    });
-    const res2 = makeResponse({
-      bodyBytes: BINARY_BASE64 as unknown as ArrayBuffer,
-    });
+    const res1 = makeResponse({ bodyBytes: toArrayBuffer(BINARY_BYTES) });
+    const res2 = makeResponse({ bodyBytes: toArrayBuffer(BINARY_BYTES) });
     const fromArrayBuffer = new Uint8Array(await res1.arrayBuffer());
     const fromBytes = await res2.bytes();
     expect(fromArrayBuffer).toEqual(fromBytes);
   });
 
   it('byte length matches the original binary data exactly', async () => {
-    const res = makeResponse({
-      bodyBytes: BINARY_BASE64 as unknown as ArrayBuffer,
-    });
+    const res = makeResponse({ bodyBytes: toArrayBuffer(BINARY_BYTES) });
     const buf = await res.arrayBuffer();
     expect(buf.byteLength).toBe(BINARY_BYTES.byteLength);
   });
@@ -88,17 +82,13 @@ describe('NitroResponse — binary body via base64 bodyBytes (native fix)', () =
   it('preserves every individual byte value including 0x00 and 0xff', async () => {
     const allBytes = new Uint8Array(256);
     for (let i = 0; i < 256; i++) allBytes[i] = i;
-    const res = makeResponse({
-      bodyBytes: base64(allBytes) as unknown as ArrayBuffer,
-    });
+    const res = makeResponse({ bodyBytes: toArrayBuffer(allBytes) });
     const result = new Uint8Array(await res.arrayBuffer());
     expect(result).toEqual(allBytes);
   });
 
   it('clone() preserves binary body', async () => {
-    const res = makeResponse({
-      bodyBytes: BINARY_BASE64 as unknown as ArrayBuffer,
-    });
+    const res = makeResponse({ bodyBytes: toArrayBuffer(BINARY_BYTES) });
     const cloned = res.clone();
     const buf = await cloned.arrayBuffer();
     expect(new Uint8Array(buf)).toEqual(BINARY_BYTES);

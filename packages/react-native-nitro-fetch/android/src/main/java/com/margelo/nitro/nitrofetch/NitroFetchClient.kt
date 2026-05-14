@@ -14,6 +14,9 @@ import org.chromium.net.UrlResponseInfo
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
+import java.nio.charset.Charset
+import java.nio.charset.CharsetDecoder
+import java.nio.charset.CodingErrorAction
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
@@ -25,6 +28,33 @@ fun ByteBuffer.toByteArray(): ByteArray {
   val arr = ByteArray(dup.remaining())
   dup.get(arr)
   return arr
+}
+
+// Strict UTF-8 decoder reused per-thread. Decoding response bodies is on the hot
+// path for every request; allocating a fresh decoder each time is wasteful, and
+// CharsetDecoder is not thread-safe — a ThreadLocal gives us both. REPORT (rather
+// than the default REPLACE) makes invalid UTF-8 throw, which is how we detect a
+// binary body instead of silently corrupting it with U+FFFD replacement chars.
+private val utf8StrictDecoder = ThreadLocal.withInitial {
+  Charsets.UTF_8.newDecoder()
+    .onMalformedInput(CodingErrorAction.REPORT)
+    .onUnmappableCharacter(CodingErrorAction.REPORT)
+}
+
+private fun strictDecoderFor(charset: Charset): CharsetDecoder =
+  if (charset == Charsets.UTF_8) {
+    utf8StrictDecoder.get()
+  } else {
+    charset.newDecoder()
+      .onMalformedInput(CodingErrorAction.REPORT)
+      .onUnmappableCharacter(CodingErrorAction.REPORT)
+  }
+
+// Wrap raw bytes into a Nitro ArrayBuffer for zero-base64 bridging to JS.
+private fun ByteArray.toArrayBuffer(): ArrayBuffer {
+  val ab = ArrayBuffer.allocate(this.size)
+  ab.getBuffer(false).put(this)
+  return ab
 }
 
 @DoNotStrip
@@ -187,17 +217,13 @@ class NitroFetchClient(private val engine: CronetEngine, private val executor: E
                 Charsets.UTF_8
               }
             }
-            // Use a strict decoder so binary data (invalid UTF-8) results in null
-            // rather than a silently-corrupted string with replacement chars.
-            // Binary responses are then base64-encoded into bodyBytes for the JS side.
+            // Strict-decode the body as text. If it fails the response is binary,
+            // so we bridge the raw bytes as an ArrayBuffer instead — no base64.
             val bodyStr: String? = try {
-              charset.newDecoder()
-                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
-                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
-                .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+              strictDecoderFor(charset).decode(ByteBuffer.wrap(bytes)).toString()
             } catch (_: Throwable) { null }
-            val bodyBytesBase64: String? = if (bodyStr == null && bytes.isNotEmpty())
-              android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            val bodyBytesAb: ArrayBuffer? = if (bodyStr == null && bytes.isNotEmpty())
+              bytes.toArrayBuffer()
             else null
             val res = NitroResponse(
               url = info.url,
@@ -207,7 +233,7 @@ class NitroFetchClient(private val engine: CronetEngine, private val executor: E
               redirected = info.url != url,
               headers = headersArr,
               bodyString = bodyStr,
-              bodyBytes = bodyBytesBase64
+              bodyBytes = bodyBytesAb
             )
             onSuccess(res)
           } catch (t: Throwable) {

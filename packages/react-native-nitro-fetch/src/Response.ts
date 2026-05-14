@@ -144,21 +144,8 @@ export class NitroResponse {
   }
 
   private _getBodyBytes(): ArrayBuffer | undefined {
-    if (this._bodyBytes != null) {
-      // Native passes binary data as a base64 string in bodyBytes (until Nitro
-      // supports ArrayBuffer bridging). Decode it so arrayBuffer() / bytes()
-      // return the correct raw bytes.
-      if (typeof (this._bodyBytes as unknown) === 'string') {
-        const binary = atob(this._bodyBytes as unknown as string);
-        const buf = new ArrayBuffer(binary.length);
-        const view = new Uint8Array(buf);
-        for (let i = 0; i < binary.length; i++) {
-          view[i] = binary.charCodeAt(i);
-        }
-        return buf;
-      }
-      return this._bodyBytes;
-    }
+    // TODO: copy buffer to avoid clone being modifying res
+    if (this._bodyBytes != null) return this._bodyBytes;
     if (this._bodyString != null) {
       const encoded = stringToUTF8(this._bodyString);
       return (encoded.buffer as ArrayBuffer).slice(

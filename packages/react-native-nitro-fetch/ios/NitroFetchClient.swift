@@ -231,9 +231,15 @@ final class NitroFetchClient: HybridNitroFetchClientSpec {
     }
     #endif
 
-    // Choose bodyString by default (matching Android’s first pass)
+    // Choose bodyString by default (matching Android’s first pass).
+    // For binary responses that can’t be decoded as text, bridge the raw bytes
+    // as an ArrayBuffer so arrayBuffer() / bytes() return them with no base64.
     let charset = NitroFetchClient.detectCharset(from: http) ?? String.Encoding.utf8
     let bodyStr = String(data: data, encoding: charset) ?? String(data: data, encoding: .utf8)
+    var bodyBytesAb: ArrayBuffer? = nil
+    if bodyStr == nil && !data.isEmpty {
+      bodyBytesAb = try ArrayBuffer.copy(data: data)
+    }
 
     let res = NitroResponse(
       url: finalURL?.absoluteString ?? http.url?.absoluteString ?? req.url,
@@ -243,7 +249,7 @@ final class NitroFetchClient: HybridNitroFetchClientSpec {
       redirected: (finalURL?.absoluteString ?? http.url?.absoluteString ?? req.url) != req.url,
       headers: headersPairs,
       bodyString: bodyStr,
-      bodyBytes: nil
+      bodyBytes: bodyBytesAb
     )
 
     // Do not write to cache here; only prefetch should populate the cache
@@ -284,6 +290,10 @@ final class NitroFetchClient: HybridNitroFetchClientSpec {
         }
         let charset = NitroFetchClient.detectCharset(from: http) ?? .utf8
         let bodyStr = String(data: data, encoding: charset) ?? String(data: data, encoding: .utf8)
+        var bodyBytesAb: ArrayBuffer? = nil
+        if bodyStr == nil && !data.isEmpty {
+          bodyBytesAb = try ArrayBuffer.copy(data: data)
+        }
         let res = NitroResponse(
           url: finalURL?.absoluteString ?? http.url?.absoluteString ?? req.url,
           status: Double(http.statusCode),
@@ -292,7 +302,7 @@ final class NitroFetchClient: HybridNitroFetchClientSpec {
           redirected: (finalURL?.absoluteString ?? http.url?.absoluteString ?? req.url) != req.url,
           headers: headersPairs,
           bodyString: bodyStr,
-          bodyBytes: nil
+          bodyBytes: bodyBytesAb
         )
         FetchCache.complete(key, with: .success(res))
       } catch {

@@ -47,9 +47,8 @@ export interface NitroResponse {
   ok: boolean;
   redirected: boolean;
   headers: NitroHeader[];
-  // Body as either UTF-8 string or raw bytes (first implementation target)
   bodyString?: string;
-  bodyBytes?: string; //will be ArrayBuffer in future
+  bodyBytes?: ArrayBuffer;
 }
 
 export interface NitroFetchClient extends HybridObject<{

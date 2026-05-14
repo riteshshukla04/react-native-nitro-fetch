@@ -118,11 +118,20 @@
   ],
   "packageManager": "yarn@3.6.1",
   "jest": {
-    "preset": "react-native",
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json"],
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
       "<rootDir>/lib/"
-    ]
+    ],
+    "globals": {
+      "ts-jest": {
+        "tsconfig": {
+          "jsx": "react"
+        }
+      }
+    }
   },
   "release-it": {
     "git": false,

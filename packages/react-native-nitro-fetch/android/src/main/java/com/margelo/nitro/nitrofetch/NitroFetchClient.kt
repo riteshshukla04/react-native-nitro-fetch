@@ -187,7 +187,18 @@ class NitroFetchClient(private val engine: CronetEngine, private val executor: E
                 Charsets.UTF_8
               }
             }
-            val bodyStr = try { String(bytes, charset) } catch (_: Throwable) { String(bytes, Charsets.UTF_8) }
+            // Use a strict decoder so binary data (invalid UTF-8) results in null
+            // rather than a silently-corrupted string with replacement chars.
+            // Binary responses are then base64-encoded into bodyBytes for the JS side.
+            val bodyStr: String? = try {
+              charset.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+            } catch (_: Throwable) { null }
+            val bodyBytesBase64: String? = if (bodyStr == null && bytes.isNotEmpty())
+              android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            else null
             val res = NitroResponse(
               url = info.url,
               status = status.toDouble(),
@@ -196,7 +207,7 @@ class NitroFetchClient(private val engine: CronetEngine, private val executor: E
               redirected = info.url != url,
               headers = headersArr,
               bodyString = bodyStr,
-              bodyBytes = null
+              bodyBytes = bodyBytesBase64
             )
             onSuccess(res)
           } catch (t: Throwable) {

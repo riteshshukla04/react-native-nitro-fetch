@@ -231,9 +231,12 @@ final class NitroFetchClient: HybridNitroFetchClientSpec {
     }
     #endif
 
-    // Choose bodyString by default (matching Android’s first pass)
+    // Choose bodyString by default (matching Android’s first pass).
+    // For binary responses that can’t be decoded as text, fall back to base64 in bodyBytes
+    // so that arrayBuffer() / bytes() return the correct raw bytes on the JS side.
     let charset = NitroFetchClient.detectCharset(from: http) ?? String.Encoding.utf8
     let bodyStr = String(data: data, encoding: charset) ?? String(data: data, encoding: .utf8)
+    let bodyBytesBase64: String? = bodyStr == nil && !data.isEmpty ? data.base64EncodedString() : nil
 
     let res = NitroResponse(
       url: finalURL?.absoluteString ?? http.url?.absoluteString ?? req.url,
@@ -243,7 +246,7 @@ final class NitroFetchClient: HybridNitroFetchClientSpec {
       redirected: (finalURL?.absoluteString ?? http.url?.absoluteString ?? req.url) != req.url,
       headers: headersPairs,
       bodyString: bodyStr,
-      bodyBytes: nil
+      bodyBytes: bodyBytesBase64
     )
 
     // Do not write to cache here; only prefetch should populate the cache
@@ -284,6 +287,7 @@ final class NitroFetchClient: HybridNitroFetchClientSpec {
         }
         let charset = NitroFetchClient.detectCharset(from: http) ?? .utf8
         let bodyStr = String(data: data, encoding: charset) ?? String(data: data, encoding: .utf8)
+        let bodyBytesBase64: String? = bodyStr == nil && !data.isEmpty ? data.base64EncodedString() : nil
         let res = NitroResponse(
           url: finalURL?.absoluteString ?? http.url?.absoluteString ?? req.url,
           status: Double(http.statusCode),
@@ -292,7 +296,7 @@ final class NitroFetchClient: HybridNitroFetchClientSpec {
           redirected: (finalURL?.absoluteString ?? http.url?.absoluteString ?? req.url) != req.url,
           headers: headersPairs,
           bodyString: bodyStr,
-          bodyBytes: nil
+          bodyBytes: bodyBytesBase64
         )
         FetchCache.complete(key, with: .success(res))
       } catch {

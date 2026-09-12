@@ -21,7 +21,12 @@ def reactNativeArchitectures() {
 }
 
 apply plugin: "com.android.library"
-apply plugin: "kotlin-android"
+
+
+if (project.extensions.findByName('kotlin') == null) {
+  apply plugin: "kotlin-android"
+}
+
 apply from: '../nitrogen/generated/android/nitrofetch+autolinking.gradle'
 
 // Do not apply React Gradle plugin in library to avoid RN codegen duplicating app classes

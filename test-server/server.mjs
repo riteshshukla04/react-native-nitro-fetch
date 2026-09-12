@@ -68,13 +68,12 @@ const rawBody = (req, _res, next) => {
 
 const echoBody = (req, res) => {
   const ct = (req.headers['content-type'] || '').toLowerCase();
-  const out = { ...baseInfo(req), data: '', json: null, form: {}, files: {}, fileNames: {} };
+  const out = { ...baseInfo(req), data: '', json: null, form: {}, files: {} };
   if (ct.includes('multipart/form-data')) {
     for (const [k, v] of Object.entries(req.body || {})) out.form[k] = v;
     for (const f of req.files || []) {
       out.files[f.fieldname] =
         `data:${f.mimetype || 'application/octet-stream'};base64,${f.buffer.toString('base64')}`;
-      out.fileNames[f.fieldname] = f.originalname;
     }
   } else {
     const raw = req.rawBody ? req.rawBody.toString('utf8') : '';

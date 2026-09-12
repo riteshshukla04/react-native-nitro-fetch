@@ -734,6 +734,7 @@ async function nitroFetchRaw(
 
   try {
     const res: NitroResponseNative = await client.request(req);
+    if (signal?.aborted) throw createAbortError();
     if (inspectorId) {
       NetworkInspector._recordEnd(
         inspectorId,
@@ -841,6 +842,30 @@ async function nitroStreamFetch(
     let responseResolved = false;
     let streamBytesReceived = 0;
 
+    let abortSettled = false;
+    const settleAborted = () => {
+      if (abortSettled) return;
+      abortSettled = true;
+      cleanupAbortListener();
+      if (inspectorId) {
+        NetworkInspector._recordEnd(
+          inspectorId,
+          0,
+          '',
+          [],
+          0,
+          'Request aborted'
+        );
+      }
+      const err = createAbortError();
+      if (!responseResolved) {
+        responseResolved = true;
+        rejectResponse(err);
+      } else {
+        streamController.error(err);
+      }
+    };
+
     builder.onResponseStarted((info) => {
       if (responseResolved || signal?.aborted) return;
       responseResolved = true;
@@ -876,7 +901,7 @@ async function nitroStreamFetch(
 
     builder.onSucceeded((_info) => {
       cleanupAbortListener();
-      if (streamCancelled) return;
+      if (streamCancelled || signal?.aborted) return;
       streamController.close();
       if (inspectorId) {
         const info = _info as any;
@@ -893,10 +918,9 @@ async function nitroStreamFetch(
     });
 
     builder.onFailed((_info, error) => {
+      if (signal?.aborted) return settleAborted();
       cleanupAbortListener();
-      const err = signal?.aborted
-        ? createAbortError()
-        : new Error(error.message);
+      const err = new Error(error.message);
       if (inspectorId) {
         NetworkInspector._recordEnd(inspectorId, 0, '', [], 0, error.message);
       }
@@ -908,35 +932,15 @@ async function nitroStreamFetch(
       }
     });
 
-    builder.onCanceled(() => {
-      cleanupAbortListener();
-      const err = createAbortError();
-      if (inspectorId) {
-        NetworkInspector._recordEnd(
-          inspectorId,
-          0,
-          '',
-          [],
-          0,
-          'Request canceled'
-        );
-      }
-      if (!responseResolved) {
-        responseResolved = true;
-        rejectResponse(err);
-      } else {
-        streamController.error(err);
-      }
-    });
+    builder.onCanceled(() => settleAborted());
 
     const request = builder.build();
     if (signal) {
       abortListener = () => {
         try {
           request.cancel();
-        } catch {
-          return;
-        }
+        } catch {}
+        settleAborted();
       };
       signal.addEventListener('abort', abortListener, { once: true });
     }

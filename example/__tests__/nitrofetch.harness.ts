@@ -12,6 +12,29 @@ import { BASE } from '../test-utils/server';
 
 const image = `${BASE}/image/jpeg`;
 
+const blockJsThread = (ms: number) => {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {}
+};
+
+const abortAfterNativeDone = async (init?: Record<string, unknown>) => {
+  const controller = new AbortController();
+  const pending = (nitroFetch as any)(`${BASE}/delay/1`, {
+    ...init,
+    signal: controller.signal,
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  blockJsThread(2000);
+  controller.abort();
+  return Promise.race([
+    pending.then(
+      () => 'resolved',
+      (e: any) => e?.name ?? 'rejected'
+    ),
+    new Promise((r) => setTimeout(() => r('hung'), 3000)),
+  ]);
+};
+
 describe('NitroFetch - Native registerPrefetch', () => {
   const NP_URL = `${BASE}/anything/native-prefetch-test`;
   const NP_KEY = 'harness-native-prefetch';
@@ -475,6 +498,10 @@ describe('NitroFetch - AbortController', () => {
     expect(elapsed).toBeLessThan(5000);
   });
 
+  it('abort after native has finished still rejects', async () => {
+    expect(await abortAfterNativeDone()).toBe('AbortError');
+  });
+
   it('normal fetch with signal (not aborted) succeeds', async () => {
     const controller = new AbortController();
     const res = await nitroFetch(`${BASE}/get`, {
@@ -589,6 +616,28 @@ describe('NitroFetch - Streaming', () => {
     }
 
     expect(threw).toBe(true);
+  });
+
+  it('abort after native has finished settles instead of hanging', async () => {
+    expect(await abortAfterNativeDone({ stream: true })).toBe('AbortError');
+  });
+
+  it('abort after the body has finished natively errors the reader', async () => {
+    const controller = new AbortController();
+    const res = (await (nitroFetch as any)(
+      `${BASE}/drip?duration=1&numbytes=10&delay=0`,
+      { stream: true, signal: controller.signal }
+    )) as any;
+    const reader = res.body.getReader();
+    await reader.read();
+    blockJsThread(2000);
+    controller.abort();
+
+    const outcome = await reader.read().then(
+      (r: any) => (r.done ? 'eof' : 'chunk'),
+      (e: any) => e?.name ?? 'rejected'
+    );
+    expect(outcome).toBe('AbortError');
   });
 
   // The server drips for 10s. Polling stops the moment it records either

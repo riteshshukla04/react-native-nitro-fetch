@@ -32,6 +32,14 @@ abstract class HybridNitroFetchSpec: HybridObject() {
   @DoNotStrip
   @Keep
   abstract fun createClient(): HybridNitroFetchClientSpec
+  
+  @DoNotStrip
+  @Keep
+  abstract fun setCertificatePinning(configJson: String): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun reloadCertificatePinning(): Unit
 
   // Default implementation of `HybridObject.toString()`
   override fun toString(): String {

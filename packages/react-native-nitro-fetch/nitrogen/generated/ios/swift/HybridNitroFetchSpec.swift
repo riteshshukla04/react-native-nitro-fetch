@@ -14,6 +14,8 @@ public protocol HybridNitroFetchSpec_protocol: HybridObject {
 
   // Methods
   func createClient() throws -> (any HybridNitroFetchClientSpec)
+  func setCertificatePinning(configJson: String) throws -> Void
+  func reloadCertificatePinning() throws -> Void
 }
 
 public extension HybridNitroFetchSpec_protocol {

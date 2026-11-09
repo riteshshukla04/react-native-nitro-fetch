@@ -74,3 +74,30 @@ fun CronetEngine.Builder.enableConfiguredHttpCache(): CronetEngine.Builder {
     enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISABLED, 0)
   }
 }
+
+/**
+ * Retires a Cronet engine that was replaced (e.g. after the pin config changed at runtime).
+ * `shutdown()` throws while requests are in flight, so those engines are retried in the background and
+ * their requests finish on the old pins. Returns true if the engine was shut down immediately, which
+ * is also when its storage path is free for the replacement engine to use.
+ */
+internal fun retireCronetEngine(engine: CronetEngine): Boolean {
+  try {
+    engine.shutdown()
+    return true
+  } catch (_: IllegalStateException) {
+    // Requests still running; retry below.
+  }
+  Thread({
+    var attempts = 0
+    while (attempts++ < 120) {
+      Thread.sleep(1000)
+      try {
+        engine.shutdown()
+        return@Thread
+      } catch (_: IllegalStateException) {
+      }
+    }
+  }, "NitroFetch-engine-retire").apply { isDaemon = true }.start()
+  return false
+}

@@ -15,6 +15,8 @@ namespace margelo::nitro::nitrofetch {
     // load custom methods/properties
     registerHybrids(this, [](Prototype& prototype) {
       prototype.registerHybridMethod("createClient", &HybridNitroFetchSpec::createClient);
+      prototype.registerHybridMethod("setCertificatePinning", &HybridNitroFetchSpec::setCertificatePinning);
+      prototype.registerHybridMethod("reloadCertificatePinning", &HybridNitroFetchSpec::reloadCertificatePinning);
     });
   }
 

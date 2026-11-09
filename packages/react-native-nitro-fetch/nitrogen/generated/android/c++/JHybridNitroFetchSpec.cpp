@@ -13,6 +13,7 @@ namespace margelo::nitro::nitrofetch { class HybridNitroFetchClientSpec; }
 #include <memory>
 #include "HybridNitroFetchClientSpec.hpp"
 #include "JHybridNitroFetchClientSpec.hpp"
+#include <string>
 
 namespace margelo::nitro::nitrofetch {
 
@@ -51,6 +52,14 @@ namespace margelo::nitro::nitrofetch {
     static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JHybridNitroFetchClientSpec::JavaPart>()>("createClient");
     auto __result = method(_javaPart);
     return __result->getJHybridNitroFetchClientSpec();
+  }
+  void JHybridNitroFetchSpec::setCertificatePinning(const std::string& configJson) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<jni::JString> /* configJson */)>("setCertificatePinning");
+    method(_javaPart, jni::make_jstring(configJson));
+  }
+  void JHybridNitroFetchSpec::reloadCertificatePinning() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void()>("reloadCertificatePinning");
+    method(_javaPart);
   }
 
 } // namespace margelo::nitro::nitrofetch

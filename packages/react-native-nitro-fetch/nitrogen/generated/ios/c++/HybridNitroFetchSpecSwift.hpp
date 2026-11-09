@@ -17,6 +17,7 @@ namespace margelo::nitro::nitrofetch { class HybridNitroFetchClientSpec; }
 
 #include <memory>
 #include "HybridNitroFetchClientSpec.hpp"
+#include <string>
 
 #include "NitroFetch-Swift-Cxx-Umbrella.hpp"
 
@@ -75,6 +76,18 @@ namespace margelo::nitro::nitrofetch {
       }
       auto __value = std::move(__result.value());
       return __value;
+    }
+    inline void setCertificatePinning(const std::string& configJson) override {
+      auto __result = _swiftPart.setCertificatePinning(configJson);
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
+    }
+    inline void reloadCertificatePinning() override {
+      auto __result = _swiftPart.reloadCertificatePinning();
+      if (__result.hasError()) [[unlikely]] {
+        std::rethrow_exception(__result.error());
+      }
     }
 
   private:

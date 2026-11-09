@@ -4,7 +4,7 @@ import Security
 
 /// Optional public-key (SPKI) pinning for every URLSession NitroFetch creates.
 ///
-/// The pins are read once from `nitro-fetch-pinning.json` in the main bundle — the same file and shape
+/// The pins are read from `nitro-fetch-pinning.json` (and can be replaced from JS at runtime) in the main bundle — the same file and shape
 /// Android reads from its assets (and that react-native-ssl-public-key-pinning's `initializeSslPinning` takes):
 ///   { "api.example.com": { "publicKeyHashes": ["<base64 SHA-256 of the SPKI>", ...],
 ///                          "includeSubdomains": false, "expirationDate": "2027-01-01" } }
@@ -28,7 +28,20 @@ enum CertificatePinning {
     case invalid(String)
   }
 
-  static let config: Config = {
+  private static let lock = NSLock()
+  private static var current: Config?
+
+  /// The active config: whatever `set(json:)` installed, otherwise the bundled file, read on first use.
+  static var config: Config {
+    lock.lock()
+    defer { lock.unlock() }
+    if let current = current { return current }
+    let loaded = loadBundled()
+    current = loaded
+    return loaded
+  }
+
+  private static func loadBundled() -> Config {
     guard let url = Bundle.main.url(forResource: configFile, withExtension: nil) else { return .disabled }
     let config: Config
     do {
@@ -42,12 +55,35 @@ enum CertificatePinning {
     case .invalid(let reason): NitroLogger.log("[NitroFetch] Invalid \(configFile): \(reason). Every HTTPS request will fail.")
     }
     return config
-  }()
+  }
 
-  /// True when the app ships a pin file, valid or not (an invalid one must still fail closed).
-  static var isConfigured: Bool {
-    if case .disabled = config { return false }
-    return true
+  /// Replaces the pins with `json` (same shape as the bundled file). An invalid config throws and leaves the
+  /// current pins untouched; `{}` turns pinning off. New TLS handshakes use the new pins at once.
+  static func set(json: String) throws {
+    let parsed = parse(Data(json.utf8))
+    if case .invalid(let reason) = parsed {
+      throw NSError(domain: "NitroFetch", code: NSURLErrorBadURL, userInfo: [
+        NSLocalizedDescriptionKey: "NitroFetch: invalid pinning config: \(reason)",
+      ])
+    }
+    lock.lock()
+    current = parsed
+    lock.unlock()
+    if case .enabled(let domains) = parsed {
+      NitroLogger.log("[NitroFetch] Certificate pinning set at runtime for \(domains.count) host(s)")
+    }
+  }
+
+  /// Drops any runtime config; the bundled file is read again on next use.
+  static func reload() throws {
+    lock.lock()
+    current = nil
+    lock.unlock()
+    if case .invalid(let reason) = config {
+      throw NSError(domain: "NitroFetch", code: NSURLErrorBadURL, userInfo: [
+        NSLocalizedDescriptionKey: "NitroFetch: invalid \(configFile): \(reason)",
+      ])
+    }
   }
 
   // MARK: - Challenge handling

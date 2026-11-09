@@ -72,6 +72,29 @@ internal object CertificatePinning {
   }
   private val trustExtensions by lazy { X509TrustManagerExtensions(systemTrustManager) }
 
+  /**
+   * Replaces the pins with [json] (same shape as the bundled file). The config is validated first, so an
+   * invalid one throws and leaves the current pins untouched. `{}` turns pinning off. Callers must then
+   * rebuild the Cronet engines, which fix their pins at build time.
+   */
+  fun setConfig(json: String) {
+    val parsed = parse(json)
+    synchronized(this) {
+      cached = Result.success(parsed)
+      pinnedSocketFactory = null
+    }
+    NitroLogger.i("NitroFetch", "Certificate pinning set at runtime for ${parsed.size} host(s)")
+  }
+
+  /** Drops any runtime config and re-reads the bundled file. Throws if that file is invalid. */
+  fun reload(context: Context) {
+    synchronized(this) {
+      cached = null
+      pinnedSocketFactory = null
+    }
+    domains(context)
+  }
+
   fun apply(builder: CronetEngine.Builder, context: Context) {
     val domains = domains(context)
     if (domains.isEmpty()) return

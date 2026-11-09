@@ -138,4 +138,26 @@ open class HybridNitroFetchSpec_cxx {
       return bridge.create_Result_std__shared_ptr_HybridNitroFetchClientSpec__(__exceptionPtr)
     }
   }
+  
+  @inline(__always)
+  public final func setCertificatePinning(configJson: std.string) -> bridge.Result_void_ {
+    do {
+      try self.__implementation.setCertificatePinning(configJson: String(configJson))
+      return bridge.create_Result_void_()
+    } catch (let __error) {
+      let __exceptionPtr = __error.toCpp()
+      return bridge.create_Result_void_(__exceptionPtr)
+    }
+  }
+  
+  @inline(__always)
+  public final func reloadCertificatePinning() -> bridge.Result_void_ {
+    do {
+      try self.__implementation.reloadCertificatePinning()
+      return bridge.create_Result_void_()
+    } catch (let __error) {
+      let __exceptionPtr = __error.toCpp()
+      return bridge.create_Result_void_(__exceptionPtr)
+    }
+  }
 }

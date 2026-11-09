@@ -27,6 +27,10 @@ export { NitroXMLHttpRequest as XMLHttpRequest } from './XMLHttpRequest';
 export type { NitroRequestInit } from './Request';
 export { NitroFetch } from './NitroInstances';
 export {
+  setCertificatePinning,
+  reloadCertificatePinning,
+} from './certificatePinning';
+export {
   registerTokenRefresh,
   clearTokenRefresh,
   callRefreshEndpoint,

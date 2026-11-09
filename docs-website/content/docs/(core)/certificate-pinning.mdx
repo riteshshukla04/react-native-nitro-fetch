@@ -78,3 +78,30 @@ Nothing else is needed. The file is read when the first request is made.
 - **Proxies / user-installed CAs:** they don't bypass pins. To inspect traffic with Charles or Proxyman, ship the file only in release builds, e.g. Android `src/release/assets/`.
 - **Hosts not in the file** use the platform's normal certificate validation.
 - **Android `HttpURLConnection` paths** (cold-start token refresh, FormData parts read from a URL): once a pin file exists, these use the system trust store, like Cronet does. A default `SSLSocketFactory` installed with `HttpsURLConnection.setDefaultSSLSocketFactory` isn't used for them. The WebSocket prewarm's token refresh is the exception: it keeps the default socket factory and checks a pinned host in its `HostnameVerifier`, before the request is sent.
+
+## Updating pins at runtime
+
+To change pins without a new native build, call `setCertificatePinning` with the same shape as the bundled file (an object or its JSON text):
+
+```ts
+import { setCertificatePinning, reloadCertificatePinning } from 'react-native-nitro-fetch';
+
+// After you've verified the config yourself (signature, version, ...):
+setCertificatePinning({
+  'api.example.com': {
+    publicKeyHashes: ['<base64 SHA-256 of the SPKI>'],
+    includeSubdomains: true,
+    expirationDate: '2027-01-01',
+  },
+});
+
+// Drop the runtime pins and go back to the bundled file:
+reloadCertificatePinning();
+```
+
+- The config is validated first. An invalid one throws and the current pins stay in place. `{}` turns pinning off.
+- **New requests** use the new pins. Requests already in flight finish with the old ones, and connections that are already open aren't re-checked.
+- The change **isn't persisted**. After a restart the bundled file applies again, so call `setCertificatePinning` on every launch (before your first request) with the config you stored.
+- On Android this rebuilds the Cronet engines, since Cronet fixes its pins when the engine is built. The first request after the call pays for that.
+- Whoever can call this controls your pins. Verify the config's authenticity (e.g. a signature) before calling it.
+- **Not covered:** `wss://` connections (`nitro-websockets`) keep reading the bundled file and ignore runtime pins.

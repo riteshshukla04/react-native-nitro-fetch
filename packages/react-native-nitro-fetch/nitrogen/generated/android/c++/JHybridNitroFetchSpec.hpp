@@ -55,6 +55,8 @@ namespace margelo::nitro::nitrofetch {
   public:
     // Methods
     std::shared_ptr<HybridNitroFetchClientSpec> createClient() override;
+    void setCertificatePinning(const std::string& configJson) override;
+    void reloadCertificatePinning() override;
 
   private:
     jni::global_ref<JHybridNitroFetchSpec::JavaPart> _javaPart;

@@ -148,6 +148,17 @@ export interface NitroFetch extends HybridObject<{
   /** Create a client bound to a given environment (e.g., cache dir). */
   createClient(): NitroFetchClient;
 
+  /**
+   * Replaces the certificate pins at runtime. `configJson` has the same shape as `nitro-fetch-pinning.json`.
+   * Throws if it is invalid, leaving the current pins in place. `'{}'` turns pinning off.
+   * New requests use the new pins. Requests already in flight and open connections are not interrupted.
+   * The change lasts until the app restarts or `reloadCertificatePinning()` is called.
+   */
+  setCertificatePinning(configJson: string): void;
+
+  /** Drops any runtime pins and re-reads the bundled `nitro-fetch-pinning.json`. */
+  reloadCertificatePinning(): void;
+
   // Optional future: global abort/teardown
   // shutdown(): void;
 }

@@ -18,6 +18,7 @@ namespace margelo::nitro::nitrofetch { class HybridNitroFetchClientSpec; }
 
 #include <memory>
 #include "HybridNitroFetchClientSpec.hpp"
+#include <string>
 
 namespace margelo::nitro::nitrofetch {
 
@@ -51,6 +52,8 @@ namespace margelo::nitro::nitrofetch {
     public:
       // Methods
       virtual std::shared_ptr<HybridNitroFetchClientSpec> createClient() = 0;
+      virtual void setCertificatePinning(const std::string& configJson) = 0;
+      virtual void reloadCertificatePinning() = 0;
 
     protected:
       // Hybrid Setup

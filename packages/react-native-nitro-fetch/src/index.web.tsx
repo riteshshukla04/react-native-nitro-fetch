@@ -207,3 +207,9 @@ export function applyTemplate(template: string, value: string): string {
 
 /** Native prefetch caches do not exist on web. */
 export function clearPrefetchCache(): void {}
+
+export function setCertificatePinning(_config: unknown): void {
+  console.warn('setCertificatePinning is not available on web');
+}
+
+export function reloadCertificatePinning(): void {}

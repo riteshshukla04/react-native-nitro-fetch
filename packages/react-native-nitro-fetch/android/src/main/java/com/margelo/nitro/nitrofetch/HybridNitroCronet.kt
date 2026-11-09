@@ -24,6 +24,17 @@ class HybridNitroCronet : HybridNitroCronetSpec() {
   companion object {
     @Volatile
     private var engineRef: CronetEngine? = null
+    // Bumped when the old engine couldn't release its storage path (requests in flight).
+    private var storageGeneration = 0
+
+    /** Drops the engine so the next request builds one with the current pins. */
+    internal fun replaceEngine() {
+      synchronized(this) {
+        val old = engineRef ?: return
+        engineRef = null
+        if (!retireCronetEngine(old)) storageGeneration++
+      }
+    }
 
     val ioExecutor: Executor by lazy {
       val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
@@ -49,7 +60,7 @@ class HybridNitroCronet : HybridNitroCronetSpec() {
           it.name.contains("Native", ignoreCase = true)
         }
 
-        val cacheDir = File(app.cacheDir, "nitro_cronet_cache").apply { mkdirs() }
+        val cacheDir = File(app.cacheDir, "nitro_cronet_cache" + if (storageGeneration > 0) "_$storageGeneration" else "").apply { mkdirs() }
         val builder = (nativeProvider?.createBuilder() ?: CronetEngine.Builder(app))
           .enableHttp2(true)
           .enableQuic(true)

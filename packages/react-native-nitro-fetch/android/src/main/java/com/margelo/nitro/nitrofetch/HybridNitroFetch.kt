@@ -17,8 +17,35 @@ class HybridNitroFetch : HybridNitroFetchSpec() {
     return HybridNitroFetchClient(getEngine(), ioExecutor)
   }
 
+  override fun setCertificatePinning(configJson: String) {
+    CertificatePinning.setConfig(configJson)
+    applyPinningChange()
+  }
+
+  override fun reloadCertificatePinning() {
+    CertificatePinning.reload(currentApplication() ?: initialApplication()
+      ?: throw IllegalStateException("NitroFetch: Application not available"))
+    applyPinningChange()
+  }
+
   companion object {
     @Volatile private var engineRef: CronetEngine? = null
+    // Bumped when the old engine couldn't release its storage path (requests in flight).
+    private var storageGeneration = 0
+
+    /** Cronet pins are fixed at build time, so new pins mean new engines. In-flight requests finish on the old ones. */
+    internal fun applyPinningChange() {
+      replaceEngine()
+      HybridNitroCronet.replaceEngine()
+    }
+
+    private fun replaceEngine() {
+      synchronized(this) {
+        val old = engineRef ?: return
+        engineRef = null
+        if (!retireCronetEngine(old)) storageGeneration++
+      }
+    }
 
     // Simpler & safer for callbacks than a pool (avoid reentrancy races in glue code).
     val ioExecutor: Executor by lazy {
@@ -44,7 +71,7 @@ class HybridNitroFetch : HybridNitroFetchSpec() {
         providers.forEach { NitroLogger.i("NitroFetch", "Cronet provider: ${it.name} v=${it.version}") }
         val nativeProvider = providers.firstOrNull { it.name.contains("Native", ignoreCase = true) }
 
-        val cacheDir = File(app.cacheDir, "nitrofetch_cronet_cache").apply { mkdirs() }
+        val cacheDir = File(app.cacheDir, "nitrofetch_cronet_cache" + if (storageGeneration > 0) "_$storageGeneration" else "").apply { mkdirs() }
         val builder = (nativeProvider?.createBuilder() ?: CronetEngine.Builder(app))
           .enableHttp2(true)
           .enableQuic(true)
